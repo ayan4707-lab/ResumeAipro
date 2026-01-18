@@ -1,0 +1,1811 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ResumeAI Pro - AI Resume Builder &amp; ATS Optimizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              200: '#bbf7d0',
+              300: '#86efac',
+              400: '#4ade80',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              800: '#166534',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+    
+    .gradient-text {
+      background: linear-gradient(135deg, #22c55e 0%, #10b981 50%, #059669 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .hero-gradient {
+      background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 197, 94, 0.15), transparent);
+    }
+    
+    .card-glow {
+      box-shadow: 0 0 40px rgba(34, 197, 94, 0.1);
+    }
+    
+    .score-ring {
+      transform: rotate(-90deg);
+    }
+    
+    .animate-float {
+      animation: float 6s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-10px); }
+    }
+    
+    .animate-pulse-slow {
+      animation: pulse 3s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    
+    .template-card:hover .template-overlay {
+      opacity: 1;
+    }
+    
+    .tab-active {
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      color: white;
+    }
+    
+    .progress-bar {
+      transition: width 1s ease-out;
+    }
+    
+    .toast {
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .modal-backdrop {
+      animation: fadeIn 0.2s ease-out;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    .skeleton {
+      background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+    
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      ring: 2px;
+      ring-color: #22c55e;
+    }
+    
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .scrollbar-thin::-webkit-scrollbar-track {
+      background: #1f2937;
+    }
+    
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: #4b5563;
+      border-radius: 3px;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full bg-gray-950 text-gray-100 font-sans overflow-auto">
+  <div id="app" class="h-full w-full"><!-- App content will be rendered here -->
+  </div>
+  <script>
+    // ==================== STATE MANAGEMENT ====================
+    const defaultConfig = {
+      hero_title: 'Build ATS-Optimized Resumes',
+      hero_subtitle: 'AI-powered resume builder that helps you land more interviews with intelligent optimization and keyword matching',
+      cta_text: 'Get Started Free',
+      background_color: '#030712',
+      surface_color: '#111827',
+      text_color: '#f3f4f6',
+      primary_action_color: '#22c55e',
+      secondary_action_color: '#6b7280',
+      font_family: 'Plus Jakarta Sans',
+      font_size: 16
+    };
+
+    let config = { ...defaultConfig };
+    
+    const state = {
+      currentPage: 'landing',
+      isAuthenticated: false,
+      user: null,
+      darkMode: true,
+      resumeText: '',
+      jobDescription: '',
+      uploadedFile: null,
+      analysisResults: null,
+      isAnalyzing: false,
+      selectedTemplate: 'modern',
+      resumeData: {
+        personalInfo: {
+          name: '',
+          email: '',
+          phone: '',
+          location: '',
+          linkedin: '',
+          website: ''
+        },
+        summary: '',
+        experience: [],
+        education: [],
+        skills: []
+      },
+      analysesRemaining: 5,
+      isPro: false,
+      toasts: [],
+      activeModal: null
+    };
+
+    // ==================== UTILITY FUNCTIONS ====================
+    function showToast(message, type = 'success') {
+      const id = Date.now();
+      state.toasts.push({ id, message, type });
+      renderToasts();
+      setTimeout(() => {
+        state.toasts = state.toasts.filter(t => t.id !== id);
+        renderToasts();
+      }, 4000);
+    }
+
+    function renderToasts() {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      
+      container.innerHTML = state.toasts.map(toast => `
+        <div class="toast flex items-center gap-3 px-4 py-3 rounded-lg ${
+          toast.type === 'success' ? 'bg-green-900/90 border border-green-700' :
+          toast.type === 'error' ? 'bg-red-900/90 border border-red-700' :
+          'bg-gray-800/90 border border-gray-700'
+        }">
+          ${toast.type === 'success' ? `
+            <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          ` : toast.type === 'error' ? `
+            <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          ` : `
+            <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          `}
+          <span class="text-sm font-medium">${toast.message}</span>
+        </div>
+      `).join('');
+    }
+
+    function navigate(page) {
+      state.currentPage = page;
+      render();
+      window.scrollTo(0, 0);
+    }
+
+    function formatDate(date) {
+      return new Date(date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    }
+
+    // ==================== MOCK AI ANALYSIS ====================
+    async function analyzeResume() {
+      if (!state.resumeText && !state.uploadedFile) {
+        showToast('Please upload a resume or paste resume text', 'error');
+        return;
+      }
+
+      if (state.analysesRemaining <= 0 && !state.isPro) {
+        showToast('You have reached your daily limit. Upgrade to Pro for unlimited analyses.', 'error');
+        return;
+      }
+
+      state.isAnalyzing = true;
+      render();
+
+      // Simulate API call
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      const resumeContent = state.resumeText || 'Uploaded resume content';
+      const hasJobDesc = state.jobDescription.length > 50;
+
+      // Generate mock analysis results
+      state.analysisResults = {
+        overallScore: Math.floor(Math.random() * 30) + 65,
+        breakdown: {
+          ats: { score: Math.floor(Math.random() * 25) + 70, label: 'ATS Compatibility' },
+          content: { score: Math.floor(Math.random() * 30) + 60, label: 'Content Quality' },
+          writing: { score: Math.floor(Math.random() * 25) + 70, label: 'Writing Style' },
+          jobMatch: { score: hasJobDesc ? Math.floor(Math.random() * 35) + 55 : 0, label: 'Job Match' },
+          readiness: { score: Math.floor(Math.random() * 20) + 75, label: 'Interview Ready' }
+        },
+        strengths: [
+          'Clear and professional formatting',
+          'Good use of action verbs',
+          'Quantifiable achievements present',
+          'Relevant skills highlighted'
+        ],
+        improvements: [
+          { priority: 'high', text: 'Add more metrics and numbers to quantify achievements' },
+          { priority: 'high', text: 'Include more industry-specific keywords' },
+          { priority: 'medium', text: 'Expand professional summary to 3-4 sentences' },
+          { priority: 'medium', text: 'Add certifications or relevant courses' },
+          { priority: 'low', text: 'Consider adding a projects section' }
+        ],
+        keywords: {
+          matched: ['JavaScript', 'React', 'Node.js', 'TypeScript', 'Git', 'Agile', 'REST API'],
+          missing: hasJobDesc ? ['AWS', 'Docker', 'CI/CD', 'Kubernetes', 'GraphQL', 'PostgreSQL'] : []
+        },
+        bulletRewrites: [
+          {
+            original: 'Worked on improving website performance',
+            improved: 'Optimized website performance by 40% through code refactoring and implementing lazy loading, reducing bounce rate by 25%'
+          },
+          {
+            original: 'Led a team of developers',
+            improved: 'Led cross-functional team of 8 developers delivering 12 successful product releases, achieving 99.9% uptime'
+          },
+          {
+            original: 'Developed new features for the application',
+            improved: 'Architected and deployed 15+ features using React/TypeScript, increasing user engagement by 60% and revenue by $2M annually'
+          }
+        ]
+      };
+
+      if (!state.isPro) {
+        state.analysesRemaining--;
+      }
+
+      state.isAnalyzing = false;
+      navigate('results');
+      showToast('Analysis complete!', 'success');
+    }
+
+    // ==================== AUTH FUNCTIONS ====================
+    function handleSignIn(email, password) {
+      // Mock authentication
+      state.isAuthenticated = true;
+      state.user = {
+        name: email.split('@')[0],
+        email: email,
+        avatar: null
+      };
+      showToast('Welcome back!', 'success');
+      navigate('dashboard');
+    }
+
+    function handleSignUp(name, email, password) {
+      state.isAuthenticated = true;
+      state.user = { name, email, avatar: null };
+      showToast('Account created successfully!', 'success');
+      navigate('dashboard');
+    }
+
+    function handleGoogleAuth() {
+      state.isAuthenticated = true;
+      state.user = {
+        name: 'John Doe',
+        email: 'john@gmail.com',
+        avatar: null
+      };
+      showToast('Signed in with Google!', 'success');
+      navigate('dashboard');
+    }
+
+    function handleSignOut() {
+      state.isAuthenticated = false;
+      state.user = null;
+      state.resumeText = '';
+      state.jobDescription = '';
+      state.analysisResults = null;
+      showToast('Signed out successfully', 'info');
+      navigate('landing');
+    }
+
+    // ==================== FILE HANDLING ====================
+    function handleFileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const validTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+      if (!validTypes.includes(file.type)) {
+        showToast('Please upload a PDF or DOCX file', 'error');
+        return;
+      }
+
+      if (file.size > 5 * 1024 * 1024) {
+        showToast('File size must be less than 5MB', 'error');
+        return;
+      }
+
+      state.uploadedFile = file;
+      // Simulate text extraction
+      state.resumeText = `Extracted content from ${file.name}\n\nJohn Smith\nSenior Software Engineer\njohn.smith@email.com | (555) 123-4567 | San Francisco, CA\n\nPROFESSIONAL SUMMARY\nResults-driven software engineer with 7+ years of experience building scalable web applications.\n\nEXPERIENCE\nSenior Software Engineer | Tech Corp | 2020 - Present\n• Led development of microservices architecture\n• Worked on improving website performance\n• Led a team of developers\n\nSoftware Engineer | StartupXYZ | 2017 - 2020\n• Developed new features for the application\n• Implemented CI/CD pipelines\n\nEDUCATION\nB.S. Computer Science | Stanford University | 2017\n\nSKILLS\nJavaScript, React, Node.js, TypeScript, Python, Git, Agile`;
+      
+      showToast(`${file.name} uploaded successfully`, 'success');
+      render();
+    }
+
+    // ==================== RENDER FUNCTIONS ====================
+    function renderLandingPage() {
+      const heroTitle = config.hero_title || defaultConfig.hero_title;
+      const heroSubtitle = config.hero_subtitle || defaultConfig.hero_subtitle;
+      const ctaText = config.cta_text || defaultConfig.cta_text;
+      
+      return `
+        <div class="min-h-full">
+          <!-- Navigation -->
+          <nav class="fixed top-0 left-0 right-0 z-50 bg-gray-950/80 backdrop-blur-xl border-b border-gray-800/50">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                  </div>
+                  <span class="text-xl font-bold">ResumeAI Pro</span>
+                </div>
+                <div class="hidden md:flex items-center gap-8">
+                  <a href="#features" class="text-gray-400 hover:text-white transition-colors text-sm font-medium">Features</a>
+                  <a href="#how-it-works" class="text-gray-400 hover:text-white transition-colors text-sm font-medium">How It Works</a>
+                  <a href="#templates" class="text-gray-400 hover:text-white transition-colors text-sm font-medium">Templates</a>
+                  <a href="#pricing" class="text-gray-400 hover:text-white transition-colors text-sm font-medium">Pricing</a>
+                </div>
+                <div class="flex items-center gap-3">
+                  <button onclick="navigate('signin')" class="text-gray-300 hover:text-white transition-colors text-sm font-medium px-4 py-2">
+                    Sign In
+                  </button>
+                  <button onclick="navigate('signup')" class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-all shadow-lg shadow-green-500/25">
+                    ${ctaText}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </nav>
+
+          <!-- Hero Section -->
+          <section class="hero-gradient pt-32 pb-20 px-4">
+            <div class="max-w-5xl mx-auto text-center">
+              <div class="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/10 border border-green-500/20 mb-8">
+                <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse-slow"></span>
+                <span class="text-green-400 text-sm font-medium">AI-Powered Resume Optimization</span>
+              </div>
+              <h1 id="hero-title" class="text-5xl sm:text-6xl lg:text-7xl font-extrabold mb-6 leading-tight">
+                <span class="gradient-text">${heroTitle}</span>
+                <br>
+                <span class="text-white">with AI Intelligence</span>
+              </h1>
+              <p id="hero-subtitle" class="text-xl text-gray-400 max-w-2xl mx-auto mb-10 leading-relaxed">
+                ${heroSubtitle}
+              </p>
+              <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button id="cta-button" onclick="navigate('signup')" class="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold px-8 py-4 rounded-xl transition-all shadow-xl shadow-green-500/30 text-lg">
+                  ${ctaText} →
+                </button>
+                <button onclick="navigate('signin')" class="w-full sm:w-auto bg-gray-800 hover:bg-gray-700 text-white font-semibold px-8 py-4 rounded-xl transition-all border border-gray-700">
+                  View Demo
+                </button>
+              </div>
+              <div class="mt-12 flex items-center justify-center gap-8 text-sm text-gray-500">
+                <div class="flex items-center gap-2">
+                  <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                  </svg>
+                  <span>No credit card required</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                  </svg>
+                  <span>5 free analyses</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                  </svg>
+                  <span>ATS optimized</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hero Visual -->
+            <div class="max-w-5xl mx-auto mt-16 relative">
+              <div class="absolute -inset-4 bg-gradient-to-r from-green-500/20 to-emerald-500/20 blur-3xl rounded-3xl"></div>
+              <div class="relative bg-gray-900 rounded-2xl border border-gray-800 overflow-hidden shadow-2xl">
+                <div class="flex items-center gap-2 px-4 py-3 bg-gray-800/50 border-b border-gray-700">
+                  <div class="w-3 h-3 rounded-full bg-red-500"></div>
+                  <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+                  <div class="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span class="ml-4 text-xs text-gray-500">ResumeAI Pro - Dashboard</span>
+                </div>
+                <div class="p-6 grid grid-cols-3 gap-6">
+                  <div class="col-span-2 space-y-4">
+                    <div class="h-8 w-48 skeleton rounded"></div>
+                    <div class="space-y-2">
+                      <div class="h-4 w-full skeleton rounded"></div>
+                      <div class="h-4 w-5/6 skeleton rounded"></div>
+                      <div class="h-4 w-4/6 skeleton rounded"></div>
+                    </div>
+                    <div class="pt-4 space-y-2">
+                      <div class="h-4 w-32 skeleton rounded"></div>
+                      <div class="h-20 w-full skeleton rounded"></div>
+                    </div>
+                  </div>
+                  <div class="space-y-4">
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+                      <div class="text-center mb-4">
+                        <div class="text-4xl font-bold text-green-400">87</div>
+                        <div class="text-xs text-gray-500">ATS Score</div>
+                      </div>
+                      <div class="space-y-2">
+                        <div class="flex justify-between text-xs">
+                          <span class="text-gray-400">Content</span>
+                          <span class="text-green-400">92%</span>
+                        </div>
+                        <div class="h-1.5 bg-gray-700 rounded-full overflow-hidden">
+                          <div class="h-full bg-green-500 rounded-full" style="width: 92%"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+                      <div class="text-xs text-gray-400 mb-2">Keywords Found</div>
+                      <div class="flex flex-wrap gap-1">
+                        <span class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">React</span>
+                        <span class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">Node.js</span>
+                        <span class="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs">TypeScript</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Features Section -->
+          <section id="features" class="py-24 px-4">
+            <div class="max-w-6xl mx-auto">
+              <div class="text-center mb-16">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Everything You Need to Land Interviews</h2>
+                <p class="text-gray-400 text-lg max-w-2xl mx-auto">Powerful AI tools designed to make your resume stand out from the crowd</p>
+              </div>
+              <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                ${[
+                  { icon: '🎯', title: 'ATS Score Analysis', desc: 'Get instant feedback on how well your resume will perform with applicant tracking systems' },
+                  { icon: '🔑', title: 'Keyword Optimization', desc: 'Identify missing keywords from job descriptions and boost your match rate' },
+                  { icon: '✨', title: 'AI Bullet Rewrites', desc: 'Transform weak bullet points into powerful, metrics-driven achievements' },
+                  { icon: '📊', title: 'Detailed Breakdown', desc: 'See scores across 5 categories: ATS, content, writing, job match, and readiness' },
+                  { icon: '📝', title: 'Resume Builder', desc: 'Build professional resumes from scratch with our intuitive drag-and-drop builder' },
+                  { icon: '📄', title: 'PDF Export', desc: 'Download your optimized resume as a beautifully formatted PDF' }
+                ].map(feature => `
+                  <div class="group bg-gray-900/50 hover:bg-gray-900 border border-gray-800 hover:border-green-500/50 rounded-2xl p-6 transition-all duration-300">
+                    <div class="text-4xl mb-4">${feature.icon}</div>
+                    <h3 class="text-lg font-semibold mb-2 group-hover:text-green-400 transition-colors">${feature.title}</h3>
+                    <p class="text-gray-400 text-sm leading-relaxed">${feature.desc}</p>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+
+          <!-- How It Works Section -->
+          <section id="how-it-works" class="py-24 px-4 bg-gray-900/30">
+            <div class="max-w-6xl mx-auto">
+              <div class="text-center mb-16">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">How It Works</h2>
+                <p class="text-gray-400 text-lg">Three simple steps to a better resume</p>
+              </div>
+              <div class="grid md:grid-cols-3 gap-8">
+                ${[
+                  { step: '01', title: 'Upload Your Resume', desc: 'Upload your existing resume as PDF or DOCX, or paste the text directly' },
+                  { step: '02', title: 'Add Job Description', desc: 'Paste the job description you\'re targeting for personalized optimization' },
+                  { step: '03', title: 'Get AI Analysis', desc: 'Receive instant scores, keyword matches, and AI-powered improvement suggestions' }
+                ].map((item, i) => `
+                  <div class="relative">
+                    ${i < 2 ? '<div class="hidden md:block absolute top-12 left-full w-full h-0.5 bg-gradient-to-r from-green-500 to-transparent -translate-x-8"></div>' : ''}
+                    <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8 text-center">
+                      <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/10 border border-green-500/30 mb-6">
+                        <span class="text-2xl font-bold text-green-400">${item.step}</span>
+                      </div>
+                      <h3 class="text-xl font-semibold mb-3">${item.title}</h3>
+                      <p class="text-gray-400">${item.desc}</p>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+
+          <!-- Templates Section -->
+          <section id="templates" class="py-24 px-4">
+            <div class="max-w-6xl mx-auto">
+              <div class="text-center mb-16">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Professional Templates</h2>
+                <p class="text-gray-400 text-lg">Choose from our collection of ATS-friendly templates</p>
+              </div>
+              <div class="grid md:grid-cols-3 gap-8">
+                ${[
+                  { name: 'Modern', color: 'green' },
+                  { name: 'Classic', color: 'blue' },
+                  { name: 'Creative', color: 'purple' }
+                ].map(template => `
+                  <div class="template-card group relative bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                    <div class="aspect-[8.5/11] p-4">
+                      <div class="w-full h-full bg-white rounded-lg p-4 text-gray-900 text-xs">
+                        <div class="h-3 w-24 bg-${template.color}-500 rounded mb-2"></div>
+                        <div class="h-2 w-32 bg-gray-300 rounded mb-4"></div>
+                        <div class="space-y-1 mb-3">
+                          <div class="h-1.5 w-full bg-gray-200 rounded"></div>
+                          <div class="h-1.5 w-5/6 bg-gray-200 rounded"></div>
+                        </div>
+                        <div class="h-2 w-20 bg-${template.color}-200 rounded mb-2"></div>
+                        <div class="space-y-1">
+                          <div class="h-1.5 w-full bg-gray-200 rounded"></div>
+                          <div class="h-1.5 w-4/5 bg-gray-200 rounded"></div>
+                          <div class="h-1.5 w-full bg-gray-200 rounded"></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="template-overlay absolute inset-0 bg-gray-900/80 flex items-center justify-center opacity-0 transition-opacity">
+                      <button onclick="state.selectedTemplate = '${template.name.toLowerCase()}'; navigate('signup')" class="bg-green-500 hover:bg-green-600 text-white font-semibold px-6 py-3 rounded-lg transition-colors">
+                        Use Template
+                      </button>
+                    </div>
+                    <div class="p-4 border-t border-gray-800">
+                      <h3 class="font-semibold">${template.name}</h3>
+                      <p class="text-sm text-gray-400">ATS-optimized design</p>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+
+          <!-- Pricing Section -->
+          <section id="pricing" class="py-24 px-4 bg-gray-900/30">
+            <div class="max-w-5xl mx-auto">
+              <div class="text-center mb-16">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Simple, Transparent Pricing</h2>
+                <p class="text-gray-400 text-lg">Start free, upgrade when you need more</p>
+              </div>
+              <div class="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+                <!-- Free Plan -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8">
+                  <div class="mb-6">
+                    <h3 class="text-xl font-semibold mb-2">Free</h3>
+                    <div class="flex items-baseline gap-1">
+                      <span class="text-4xl font-bold">$0</span>
+                      <span class="text-gray-400">/month</span>
+                    </div>
+                  </div>
+                  <ul class="space-y-4 mb-8">
+                    ${['5 resume analyses per day', 'Basic ATS scoring', 'Keyword analysis', '1 resume template', 'PDF export'].map(feature => `
+                      <li class="flex items-center gap-3">
+                        <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-gray-300">${feature}</span>
+                      </li>
+                    `).join('')}
+                  </ul>
+                  <button onclick="navigate('signup')" class="w-full bg-gray-800 hover:bg-gray-700 text-white font-semibold py-3 rounded-xl transition-colors border border-gray-700">
+                    Get Started Free
+                  </button>
+                </div>
+
+                <!-- Pro Plan -->
+                <div class="relative bg-gradient-to-b from-green-500/10 to-gray-900 border border-green-500/50 rounded-2xl p-8">
+                  <div class="absolute -top-4 left-1/2 -translate-x-1/2">
+                    <span class="bg-gradient-to-r from-green-500 to-emerald-600 text-white text-sm font-semibold px-4 py-1 rounded-full">Most Popular</span>
+                  </div>
+                  <div class="mb-6">
+                    <h3 class="text-xl font-semibold mb-2">Pro</h3>
+                    <div class="flex items-baseline gap-1">
+                      <span class="text-4xl font-bold">$19</span>
+                      <span class="text-gray-400">/month</span>
+                    </div>
+                  </div>
+                  <ul class="space-y-4 mb-8">
+                    ${['Unlimited analyses', 'Advanced ATS insights', 'AI bullet rewrites', 'All resume templates', 'Priority support', 'Job match scoring', 'Cover letter builder'].map(feature => `
+                      <li class="flex items-center gap-3">
+                        <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-gray-300">${feature}</span>
+                      </li>
+                    `).join('')}
+                  </ul>
+                  <button onclick="showToast('Stripe integration coming soon!', 'info')" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-green-500/25">
+                    Upgrade to Pro
+                  </button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- FAQ Section -->
+          <section class="py-24 px-4">
+            <div class="max-w-3xl mx-auto">
+              <div class="text-center mb-16">
+                <h2 class="text-3xl sm:text-4xl font-bold mb-4">Frequently Asked Questions</h2>
+              </div>
+              <div class="space-y-4">
+                ${[
+                  { q: 'What is an ATS and why does it matter?', a: 'ATS (Applicant Tracking System) is software used by employers to filter resumes. Up to 75% of resumes are rejected by ATS before a human ever sees them. Our tool ensures your resume passes these filters.' },
+                  { q: 'How accurate is the AI analysis?', a: 'Our AI is trained on thousands of successful resumes and job descriptions. While no tool is 100% accurate, our users report significantly higher callback rates after optimization.' },
+                  { q: 'Can I use this for multiple job applications?', a: 'Absolutely! We encourage you to analyze your resume against each job description for the best results. Pro users get unlimited analyses.' },
+                  { q: 'What file formats do you support?', a: 'We support PDF and DOCX files up to 5MB. You can also paste your resume text directly.' },
+                  { q: 'Is my data secure?', a: 'Yes, we take security seriously. Your resumes are encrypted and never shared. You can delete your data at any time.' }
+                ].map((faq, i) => `
+                  <details class="group bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+                    <summary class="flex items-center justify-between p-6 cursor-pointer list-none">
+                      <span class="font-semibold pr-4">${faq.q}</span>
+                      <svg class="w-5 h-5 text-gray-400 group-open:rotate-180 transition-transform flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                      </svg>
+                    </summary>
+                    <div class="px-6 pb-6 text-gray-400">
+                      ${faq.a}
+                    </div>
+                  </details>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+
+          <!-- Footer -->
+          <footer class="py-12 px-4 border-t border-gray-800">
+            <div class="max-w-6xl mx-auto">
+              <div class="grid md:grid-cols-4 gap-8 mb-8">
+                <div>
+                  <div class="flex items-center gap-2 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center">
+                      <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                      </svg>
+                    </div>
+                    <span class="text-lg font-bold">ResumeAI Pro</span>
+                  </div>
+                  <p class="text-gray-400 text-sm">AI-powered resume optimization to help you land your dream job.</p>
+                </div>
+                <div>
+                  <h4 class="font-semibold mb-4">Product</h4>
+                  <ul class="space-y-2 text-sm text-gray-400">
+                    <li><a href="#features" class="hover:text-white transition-colors">Features</a></li>
+                    <li><a href="#pricing" class="hover:text-white transition-colors">Pricing</a></li>
+                    <li><a href="#templates" class="hover:text-white transition-colors">Templates</a></li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 class="font-semibold mb-4">Company</h4>
+                  <ul class="space-y-2 text-sm text-gray-400">
+                    <li><a href="#" class="hover:text-white transition-colors">About</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors">Blog</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors">Careers</a></li>
+                  </ul>
+                </div>
+                <div>
+                  <h4 class="font-semibold mb-4">Legal</h4>
+                  <ul class="space-y-2 text-sm text-gray-400">
+                    <li><a href="#" class="hover:text-white transition-colors">Privacy</a></li>
+                    <li><a href="#" class="hover:text-white transition-colors">Terms</a></li>
+                  </ul>
+                </div>
+              </div>
+              <div class="pt-8 border-t border-gray-800 text-center text-sm text-gray-500">
+                © ${new Date().getFullYear()} ResumeAI Pro. All rights reserved.
+              </div>
+            </div>
+          </footer>
+        </div>
+      `;
+    }
+
+    function renderAuthPage(isSignUp = false) {
+      return `
+        <div class="min-h-full flex items-center justify-center p-4">
+          <div class="w-full max-w-md">
+            <div class="text-center mb-8">
+              <button onclick="navigate('landing')" class="inline-flex items-center gap-2 mb-8 text-gray-400 hover:text-white transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                Back to home
+              </button>
+              <div class="flex items-center justify-center gap-2 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center">
+                  <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                </div>
+              </div>
+              <h1 class="text-2xl font-bold mb-2">${isSignUp ? 'Create your account' : 'Welcome back'}</h1>
+              <p class="text-gray-400">${isSignUp ? 'Start optimizing your resume today' : 'Sign in to continue to your dashboard'}</p>
+            </div>
+
+            <div class="bg-gray-900 border border-gray-800 rounded-2xl p-8">
+              <button onclick="handleGoogleAuth()" class="w-full flex items-center justify-center gap-3 bg-white hover:bg-gray-100 text-gray-900 font-semibold py-3 px-4 rounded-xl transition-colors mb-6">
+                <svg class="w-5 h-5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
+              </button>
+
+              <div class="relative mb-6">
+                <div class="absolute inset-0 flex items-center">
+                  <div class="w-full border-t border-gray-700"></div>
+                </div>
+                <div class="relative flex justify-center text-sm">
+                  <span class="px-4 bg-gray-900 text-gray-500">or</span>
+                </div>
+              </div>
+
+              <form id="auth-form" onsubmit="event.preventDefault(); ${isSignUp ? 
+                "handleSignUp(document.getElementById('name').value, document.getElementById('email').value, document.getElementById('password').value)" : 
+                "handleSignIn(document.getElementById('email').value, document.getElementById('password').value)"}">
+                ${isSignUp ? `
+                  <div class="mb-4">
+                    <label for="name" class="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
+                    <input type="text" id="name" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors" placeholder="John Doe">
+                  </div>
+                ` : ''}
+                <div class="mb-4">
+                  <label for="email" class="block text-sm font-medium text-gray-300 mb-2">Email</label>
+                  <input type="email" id="email" required class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors" placeholder="you@example.com">
+                </div>
+                <div class="mb-6">
+                  <label for="password" class="block text-sm font-medium text-gray-300 mb-2">Password</label>
+                  <input type="password" id="password" required minlength="8" class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors" placeholder="••••••••">
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-green-500/25">
+                  ${isSignUp ? 'Create Account' : 'Sign In'}
+                </button>
+              </form>
+
+              <p class="mt-6 text-center text-sm text-gray-400">
+                ${isSignUp ? 'Already have an account?' : "Don't have an account?"}
+                <button onclick="navigate('${isSignUp ? 'signin' : 'signup'}')" class="text-green-400 hover:text-green-300 font-medium ml-1">
+                  ${isSignUp ? 'Sign in' : 'Sign up'}
+                </button>
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderDashboard() {
+      return `
+        <div class="min-h-full flex flex-col">
+          <!-- Dashboard Nav -->
+          <nav class="bg-gray-900 border-b border-gray-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                  </div>
+                  <span class="text-lg font-bold">ResumeAI Pro</span>
+                </div>
+                <div class="flex items-center gap-4">
+                  <button onclick="navigate('builder')" class="text-gray-400 hover:text-white transition-colors text-sm font-medium">
+                    Resume Builder
+                  </button>
+                  <div class="flex items-center gap-3">
+                    <div class="text-right hidden sm:block">
+                      <div class="text-sm font-medium">${state.user?.name || 'User'}</div>
+                      <div class="text-xs text-gray-500">${state.isPro ? 'Pro Plan' : `${state.analysesRemaining} analyses left`}</div>
+                    </div>
+                    <button onclick="handleSignOut()" class="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors">
+                      <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </nav>
+
+          <!-- Dashboard Content -->
+          <main class="flex-1 p-4 sm:p-6 lg:p-8">
+            <div class="max-w-5xl mx-auto">
+              <div class="mb-8">
+                <h1 class="text-2xl sm:text-3xl font-bold mb-2">Resume Analysis</h1>
+                <p class="text-gray-400">Upload your resume and job description to get AI-powered optimization suggestions</p>
+              </div>
+
+              <div class="grid lg:grid-cols-2 gap-6">
+                <!-- Upload Resume Section -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <div class="flex items-center gap-3 mb-6">
+                    <div class="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                      <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 class="text-lg font-semibold">Your Resume</h2>
+                      <p class="text-sm text-gray-500">Upload PDF/DOCX or paste text</p>
+                    </div>
+                  </div>
+
+                  <!-- File Upload -->
+                  <div class="mb-4">
+                    <label class="block">
+                      <div class="border-2 border-dashed border-gray-700 hover:border-green-500/50 rounded-xl p-6 text-center cursor-pointer transition-colors ${state.uploadedFile ? 'border-green-500/50 bg-green-500/5' : ''}">
+                        <input type="file" accept=".pdf,.docx" onchange="handleFileUpload(event)" class="hidden">
+                        ${state.uploadedFile ? `
+                          <div class="flex items-center justify-center gap-3">
+                            <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <div class="text-left">
+                              <p class="font-medium text-green-400">${state.uploadedFile.name}</p>
+                              <p class="text-sm text-gray-500">${(state.uploadedFile.size / 1024).toFixed(1)} KB</p>
+                            </div>
+                          </div>
+                        ` : `
+                          <svg class="w-10 h-10 text-gray-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                          </svg>
+                          <p class="text-gray-400 mb-1">Drop your resume here or click to browse</p>
+                          <p class="text-sm text-gray-500">PDF or DOCX, max 5MB</p>
+                        `}
+                      </div>
+                    </label>
+                  </div>
+
+                  <div class="relative mb-4">
+                    <div class="absolute inset-0 flex items-center">
+                      <div class="w-full border-t border-gray-700"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                      <span class="px-4 bg-gray-900 text-gray-500">or paste text</span>
+                    </div>
+                  </div>
+
+                  <!-- Text Input -->
+                  <textarea 
+                    id="resume-text"
+                    placeholder="Paste your resume text here..."
+                    class="w-full h-48 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors resize-none scrollbar-thin"
+                    oninput="state.resumeText = this.value"
+                  >${state.resumeText}</textarea>
+                </div>
+
+                <!-- Job Description Section -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <div class="flex items-center gap-3 mb-6">
+                    <div class="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                      <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <h2 class="text-lg font-semibold">Job Description</h2>
+                      <p class="text-sm text-gray-500">Optional but recommended</p>
+                    </div>
+                  </div>
+
+                  <textarea 
+                    id="job-description"
+                    placeholder="Paste the job description here for keyword matching and job-specific optimization..."
+                    class="w-full h-72 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 focus:ring-1 focus:ring-green-500 transition-colors resize-none scrollbar-thin"
+                    oninput="state.jobDescription = this.value"
+                  >${state.jobDescription}</textarea>
+
+                  <div class="mt-4 flex items-start gap-2 text-sm text-gray-500">
+                    <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+                    </svg>
+                    <span>Adding a job description enables keyword matching and job-specific scoring</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Analyze Button -->
+              <div class="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div class="text-sm text-gray-500">
+                  ${!state.isPro ? `
+                    <span class="inline-flex items-center gap-2">
+                      <svg class="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                      </svg>
+                      ${state.analysesRemaining} free analyses remaining today
+                    </span>
+                  ` : ''}
+                </div>
+                <button 
+                  onclick="analyzeResume()"
+                  ${state.isAnalyzing ? 'disabled' : ''}
+                  class="w-full sm:w-auto bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-700 text-white font-bold px-8 py-4 rounded-xl transition-all shadow-lg shadow-green-500/25 disabled:shadow-none flex items-center justify-center gap-3"
+                >
+                  ${state.isAnalyzing ? `
+                    <svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Analyzing...
+                  ` : `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                    </svg>
+                    Analyze Resume
+                  `}
+                </button>
+              </div>
+            </div>
+          </main>
+        </div>
+      `;
+    }
+
+    function renderResults() {
+      if (!state.analysisResults) {
+        navigate('dashboard');
+        return '';
+      }
+
+      const results = state.analysisResults;
+      const scoreColor = results.overallScore >= 80 ? 'green' : results.overallScore >= 60 ? 'yellow' : 'red';
+
+      return `
+        <div class="min-h-full flex flex-col">
+          <!-- Results Nav -->
+          <nav class="bg-gray-900 border-b border-gray-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-4">
+                  <button onclick="navigate('dashboard')" class="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                    </svg>
+                    <span class="hidden sm:inline">Back to Dashboard</span>
+                  </button>
+                </div>
+                <div class="flex items-center gap-3">
+                  <button onclick="navigate('builder')" class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold px-4 py-2 rounded-lg transition-all text-sm">
+                    Build Resume →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </nav>
+
+          <!-- Results Content -->
+          <main class="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
+            <div class="max-w-6xl mx-auto">
+              <!-- Score Overview -->
+              <div class="grid lg:grid-cols-3 gap-6 mb-8">
+                <!-- Overall Score -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 text-center">
+                  <h2 class="text-lg font-semibold mb-4">Overall ATS Score</h2>
+                  <div class="relative inline-flex items-center justify-center">
+                    <svg class="w-40 h-40">
+                      <circle cx="80" cy="80" r="70" stroke="#1f2937" stroke-width="12" fill="none"/>
+                      <circle 
+                        cx="80" cy="80" r="70" 
+                        stroke="${scoreColor === 'green' ? '#22c55e' : scoreColor === 'yellow' ? '#eab308' : '#ef4444'}" 
+                        stroke-width="12" 
+                        fill="none" 
+                        stroke-linecap="round"
+                        class="score-ring"
+                        stroke-dasharray="${2 * Math.PI * 70}"
+                        stroke-dashoffset="${2 * Math.PI * 70 * (1 - results.overallScore / 100)}"
+                      />
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                      <span class="text-5xl font-bold text-${scoreColor}-400">${results.overallScore}</span>
+                      <span class="text-sm text-gray-500">out of 100</span>
+                    </div>
+                  </div>
+                  <p class="mt-4 text-sm text-gray-400">
+                    ${results.overallScore >= 80 ? 'Excellent! Your resume is well-optimized.' :
+                      results.overallScore >= 60 ? 'Good progress! Some improvements recommended.' :
+                      'Needs work. Follow our suggestions below.'}
+                  </p>
+                </div>
+
+                <!-- Category Breakdown -->
+                <div class="lg:col-span-2 bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <h2 class="text-lg font-semibold mb-6">Score Breakdown</h2>
+                  <div class="space-y-4">
+                    ${Object.entries(results.breakdown).map(([key, value]) => {
+                      if (key === 'jobMatch' && !state.jobDescription) return '';
+                      const barColor = value.score >= 80 ? 'bg-green-500' : value.score >= 60 ? 'bg-yellow-500' : 'bg-red-500';
+                      return `
+                        <div>
+                          <div class="flex justify-between text-sm mb-2">
+                            <span class="text-gray-300">${value.label}</span>
+                            <span class="font-semibold ${value.score >= 80 ? 'text-green-400' : value.score >= 60 ? 'text-yellow-400' : 'text-red-400'}">${value.score}%</span>
+                          </div>
+                          <div class="h-2 bg-gray-800 rounded-full overflow-hidden">
+                            <div class="h-full ${barColor} rounded-full progress-bar" style="width: ${value.score}%"></div>
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Detailed Analysis -->
+              <div class="grid lg:grid-cols-2 gap-6 mb-8">
+                <!-- Strengths -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-green-500/10 flex items-center justify-center">
+                      <svg class="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                      </svg>
+                    </div>
+                    <h2 class="text-lg font-semibold">Strengths</h2>
+                  </div>
+                  <ul class="space-y-3">
+                    ${results.strengths.map(strength => `
+                      <li class="flex items-start gap-3">
+                        <svg class="w-5 h-5 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-gray-300">${strength}</span>
+                      </li>
+                    `).join('')}
+                  </ul>
+                </div>
+
+                <!-- Improvements -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <div class="flex items-center gap-3 mb-4">
+                    <div class="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                      <svg class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                      </svg>
+                    </div>
+                    <h2 class="text-lg font-semibold">Areas to Improve</h2>
+                  </div>
+                  <ul class="space-y-3">
+                    ${results.improvements.map(item => `
+                      <li class="flex items-start gap-3">
+                        <span class="px-2 py-0.5 rounded text-xs font-medium flex-shrink-0 ${
+                          item.priority === 'high' ? 'bg-red-500/20 text-red-400' :
+                          item.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-blue-500/20 text-blue-400'
+                        }">${item.priority}</span>
+                        <span class="text-gray-300">${item.text}</span>
+                      </li>
+                    `).join('')}
+                  </ul>
+                </div>
+              </div>
+
+              <!-- Keywords Section -->
+              <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-8">
+                <div class="flex items-center gap-3 mb-6">
+                  <div class="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                    </svg>
+                  </div>
+                  <h2 class="text-lg font-semibold">Keyword Analysis</h2>
+                </div>
+                <div class="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h3 class="text-sm font-medium text-gray-400 mb-3">✓ Keywords Found (${results.keywords.matched.length})</h3>
+                    <div class="flex flex-wrap gap-2">
+                      ${results.keywords.matched.map(keyword => `
+                        <span class="px-3 py-1.5 bg-green-500/10 text-green-400 border border-green-500/30 rounded-lg text-sm">${keyword}</span>
+                      `).join('')}
+                    </div>
+                  </div>
+                  ${results.keywords.missing.length > 0 ? `
+                    <div>
+                      <h3 class="text-sm font-medium text-gray-400 mb-3">✗ Missing Keywords (${results.keywords.missing.length})</h3>
+                      <div class="flex flex-wrap gap-2">
+                        ${results.keywords.missing.map(keyword => `
+                          <span class="px-3 py-1.5 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg text-sm">${keyword}</span>
+                        `).join('')}
+                      </div>
+                    </div>
+                  ` : ''}
+                </div>
+              </div>
+
+              <!-- AI Bullet Rewrites -->
+              <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                  <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                      <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                      </svg>
+                    </div>
+                    <h2 class="text-lg font-semibold">AI-Powered Bullet Rewrites</h2>
+                  </div>
+                  ${!state.isPro ? `
+                    <span class="text-xs text-gray-500 bg-gray-800 px-3 py-1 rounded-full">Pro feature preview</span>
+                  ` : ''}
+                </div>
+                <div class="space-y-6">
+                  ${results.bulletRewrites.map((rewrite, i) => `
+                    <div class="border border-gray-800 rounded-xl overflow-hidden">
+                      <div class="p-4 bg-gray-800/30">
+                        <div class="text-xs text-gray-500 mb-2">Original</div>
+                        <p class="text-gray-400">${rewrite.original}</p>
+                      </div>
+                      <div class="p-4 bg-green-500/5 border-t border-gray-800">
+                        <div class="text-xs text-green-400 mb-2">✨ AI Improved</div>
+                        <p class="text-white">${rewrite.improved}</p>
+                        <button onclick="showToast('Copied to clipboard!', 'success')" class="mt-3 text-sm text-green-400 hover:text-green-300 font-medium flex items-center gap-1">
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                          </svg>
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      `;
+    }
+
+    function renderBuilder() {
+      const templates = [
+        { id: 'modern', name: 'Modern', color: 'green' },
+        { id: 'classic', name: 'Classic', color: 'blue' },
+        { id: 'creative', name: 'Creative', color: 'purple' }
+      ];
+
+      return `
+        <div class="min-h-full flex flex-col">
+          <!-- Builder Nav -->
+          <nav class="bg-gray-900 border-b border-gray-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-4">
+                  <button onclick="navigate('dashboard')" class="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                    </svg>
+                    <span class="hidden sm:inline">Dashboard</span>
+                  </button>
+                  <span class="text-gray-600">|</span>
+                  <span class="font-semibold">Resume Builder</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <button onclick="showToast('PDF export coming soon!', 'info')" class="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold px-4 py-2 rounded-lg transition-all text-sm flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    Export PDF
+                  </button>
+                </div>
+              </div>
+            </div>
+          </nav>
+
+          <!-- Builder Content -->
+          <main class="flex-1 flex overflow-hidden">
+            <!-- Editor Panel -->
+            <div class="w-full lg:w-1/2 p-6 overflow-auto scrollbar-thin">
+              <div class="max-w-xl mx-auto space-y-6">
+                <!-- Template Selector -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <h2 class="text-lg font-semibold mb-4">Choose Template</h2>
+                  <div class="grid grid-cols-3 gap-3">
+                    ${templates.map(t => `
+                      <button 
+                        onclick="state.selectedTemplate = '${t.id}'; render()"
+                        class="p-3 rounded-xl border-2 transition-all ${
+                          state.selectedTemplate === t.id 
+                            ? `border-${t.color}-500 bg-${t.color}-500/10` 
+                            : 'border-gray-700 hover:border-gray-600'
+                        }"
+                      >
+                        <div class="aspect-[8.5/11] bg-white rounded mb-2 p-2">
+                          <div class="h-2 w-8 bg-${t.color}-500 rounded mb-1"></div>
+                          <div class="h-1 w-12 bg-gray-300 rounded mb-2"></div>
+                          <div class="space-y-0.5">
+                            <div class="h-0.5 w-full bg-gray-200 rounded"></div>
+                            <div class="h-0.5 w-4/5 bg-gray-200 rounded"></div>
+                          </div>
+                        </div>
+                        <span class="text-xs font-medium">${t.name}</span>
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <!-- Personal Info -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <h2 class="text-lg font-semibold mb-4">Personal Information</h2>
+                  <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2">
+                      <label for="builder-name" class="block text-sm font-medium text-gray-400 mb-2">Full Name</label>
+                      <input 
+                        type="text" 
+                        id="builder-name"
+                        value="${state.resumeData.personalInfo.name}"
+                        oninput="state.resumeData.personalInfo.name = this.value; renderPreview()"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 transition-colors"
+                        placeholder="John Smith"
+                      >
+                    </div>
+                    <div>
+                      <label for="builder-email" class="block text-sm font-medium text-gray-400 mb-2">Email</label>
+                      <input 
+                        type="email" 
+                        id="builder-email"
+                        value="${state.resumeData.personalInfo.email}"
+                        oninput="state.resumeData.personalInfo.email = this.value; renderPreview()"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 transition-colors"
+                        placeholder="john@email.com"
+                      >
+                    </div>
+                    <div>
+                      <label for="builder-phone" class="block text-sm font-medium text-gray-400 mb-2">Phone</label>
+                      <input 
+                        type="tel" 
+                        id="builder-phone"
+                        value="${state.resumeData.personalInfo.phone}"
+                        oninput="state.resumeData.personalInfo.phone = this.value; renderPreview()"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 transition-colors"
+                        placeholder="(555) 123-4567"
+                      >
+                    </div>
+                    <div class="col-span-2">
+                      <label for="builder-location" class="block text-sm font-medium text-gray-400 mb-2">Location</label>
+                      <input 
+                        type="text" 
+                        id="builder-location"
+                        value="${state.resumeData.personalInfo.location}"
+                        oninput="state.resumeData.personalInfo.location = this.value; renderPreview()"
+                        class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 transition-colors"
+                        placeholder="San Francisco, CA"
+                      >
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Professional Summary -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <h2 class="text-lg font-semibold mb-4">Professional Summary</h2>
+                  <textarea 
+                    id="builder-summary"
+                    value="${state.resumeData.summary}"
+                    oninput="state.resumeData.summary = this.value; renderPreview()"
+                    class="w-full h-32 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:border-green-500 transition-colors resize-none"
+                    placeholder="Write a compelling 2-3 sentence summary of your professional background..."
+                  >${state.resumeData.summary}</textarea>
+                </div>
+
+                <!-- Experience -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold">Work Experience</h2>
+                    <button 
+                      onclick="state.resumeData.experience.push({ title: '', company: '', dates: '', bullets: [''] }); render()"
+                      class="text-sm text-green-400 hover:text-green-300 font-medium flex items-center gap-1"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                      </svg>
+                      Add Position
+                    </button>
+                  </div>
+                  
+                  ${state.resumeData.experience.length === 0 ? `
+                    <div class="text-center py-8 text-gray-500">
+                      <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                      </svg>
+                      <p>No experience added yet</p>
+                      <p class="text-sm">Click "Add Position" to get started</p>
+                    </div>
+                  ` : state.resumeData.experience.map((exp, i) => `
+                    <div class="border border-gray-700 rounded-xl p-4 mb-4">
+                      <div class="flex justify-between items-start mb-4">
+                        <span class="text-sm text-gray-500">Position ${i + 1}</span>
+                        <button 
+                          onclick="state.resumeData.experience.splice(${i}, 1); render()"
+                          class="text-gray-500 hover:text-red-400 transition-colors"
+                        >
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="space-y-3">
+                        <input 
+                          type="text"
+                          value="${exp.title}"
+                          oninput="state.resumeData.experience[${i}].title = this.value; renderPreview()"
+                          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:border-green-500 transition-colors text-sm"
+                          placeholder="Job Title"
+                        >
+                        <input 
+                          type="text"
+                          value="${exp.company}"
+                          oninput="state.resumeData.experience[${i}].company = this.value; renderPreview()"
+                          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:border-green-500 transition-colors text-sm"
+                          placeholder="Company Name"
+                        >
+                        <input 
+                          type="text"
+                          value="${exp.dates}"
+                          oninput="state.resumeData.experience[${i}].dates = this.value; renderPreview()"
+                          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:border-green-500 transition-colors text-sm"
+                          placeholder="Jan 2020 - Present"
+                        >
+                        <div>
+                          <label class="block text-xs text-gray-500 mb-2">Bullet Points</label>
+                          ${exp.bullets.map((bullet, bi) => `
+                            <div class="flex gap-2 mb-2">
+                              <input 
+                                type="text"
+                                value="${bullet}"
+                                oninput="state.resumeData.experience[${i}].bullets[${bi}] = this.value; renderPreview()"
+                                class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:border-green-500 transition-colors text-sm"
+                                placeholder="Describe your achievement..."
+                              >
+                              ${exp.bullets.length > 1 ? `
+                                <button 
+                                  onclick="state.resumeData.experience[${i}].bullets.splice(${bi}, 1); render()"
+                                  class="p-2 text-gray-500 hover:text-red-400 transition-colors"
+                                >
+                                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                  </svg>
+                                </button>
+                              ` : ''}
+                            </div>
+                          `).join('')}
+                          <button 
+                            onclick="state.resumeData.experience[${i}].bullets.push(''); render()"
+                            class="text-xs text-green-400 hover:text-green-300 font-medium"
+                          >
+                            + Add bullet
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+
+                <!-- Education -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-semibold">Education</h2>
+                    <button 
+                      onclick="state.resumeData.education.push({ degree: '', school: '', year: '' }); render()"
+                      class="text-sm text-green-400 hover:text-green-300 font-medium flex items-center gap-1"
+                    >
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                      </svg>
+                      Add Education
+                    </button>
+                  </div>
+                  
+                  ${state.resumeData.education.length === 0 ? `
+                    <div class="text-center py-8 text-gray-500">
+                      <svg class="w-12 h-12 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 14l9-5-9-5-9 5 9 5z"/>
+                        <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
+                      </svg>
+                      <p>No education added yet</p>
+                    </div>
+                  ` : state.resumeData.education.map((edu, i) => `
+                    <div class="border border-gray-700 rounded-xl p-4 mb-4">
+                      <div class="flex justify-between items-start mb-4">
+                        <span class="text-sm text-gray-500">Education ${i + 1}</span>
+                        <button 
+                          onclick="state.resumeData.education.splice(${i}, 1); render()"
+                          class="text-gray-500 hover:text-red-400 transition-colors"
+                        >
+                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <div class="space-y-3">
+                        <input 
+                          type="text"
+                          value="${edu.degree}"
+                          oninput="state.resumeData.education[${i}].degree = this.value; renderPreview()"
+                          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:border-green-500 transition-colors text-sm"
+                          placeholder="Degree (e.g., B.S. Computer Science)"
+                        >
+                        <input 
+                          type="text"
+                          value="${edu.school}"
+                          oninput="state.resumeData.education[${i}].school = this.value; renderPreview()"
+                          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:border-green-500 transition-colors text-sm"
+                          placeholder="School Name"
+                        >
+                        <input 
+                          type="text"
+                          value="${edu.year}"
+                          oninput="state.resumeData.education[${i}].year = this.value; renderPreview()"
+                          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:border-green-500 transition-colors text-sm"
+                          placeholder="Graduation Year"
+                        >
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+
+                <!-- Skills -->
+                <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+                  <h2 class="text-lg font-semibold mb-4">Skills</h2>
+                  <div class="flex flex-wrap gap-2 mb-4">
+                    ${state.resumeData.skills.map((skill, i) => `
+                      <span class="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm">
+                        ${skill}
+                        <button 
+                          onclick="state.resumeData.skills.splice(${i}, 1); render()"
+                          class="text-gray-500 hover:text-red-400 transition-colors ml-1"
+                        >
+                          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </span>
+                    `).join('')}
+                  </div>
+                  <div class="flex gap-2">
+                    <input 
+                      type="text"
+                      id="new-skill"
+                      class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:border-green-500 transition-colors text-sm"
+                      placeholder="Add a skill..."
+                      onkeydown="if(event.key === 'Enter') { event.preventDefault(); addSkill(); }"
+                    >
+                    <button 
+                      onclick="addSkill()"
+                      class="px-4 py-2 bg-green-500/10 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/20 transition-colors text-sm font-medium"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Preview Panel -->
+            <div class="hidden lg:block w-1/2 bg-gray-800 p-6 overflow-auto">
+              <div class="sticky top-0">
+                <div class="flex items-center justify-between mb-4">
+                  <h2 class="text-sm font-medium text-gray-400">Preview</h2>
+                  <span class="text-xs text-gray-500">${state.selectedTemplate.charAt(0).toUpperCase() + state.selectedTemplate.slice(1)} Template</span>
+                </div>
+                <div id="resume-preview" class="bg-white rounded-lg shadow-2xl aspect-[8.5/11] p-8 text-gray-900 text-sm overflow-hidden">
+                  ${renderResumePreview()}
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      `;
+    }
+
+    function renderResumePreview() {
+      const data = state.resumeData;
+      const templateColors = {
+        modern: { primary: '#22c55e', accent: '#dcfce7' },
+        classic: { primary: '#3b82f6', accent: '#dbeafe' },
+        creative: { primary: '#a855f7', accent: '#f3e8ff' }
+      };
+      const colors = templateColors[state.selectedTemplate] || templateColors.modern;
+
+      return `
+        <div style="font-family: 'Plus Jakarta Sans', sans-serif; font-size: 11px; line-height: 1.4;">
+          <!-- Header -->
+          <div style="border-bottom: 2px solid ${colors.primary}; padding-bottom: 12px; margin-bottom: 12px;">
+            <h1 style="font-size: 20px; font-weight: 700; color: #111; margin: 0 0 4px 0;">
+              ${data.personalInfo.name || 'Your Name'}
+            </h1>
+            <div style="color: #666; font-size: 10px;">
+              ${[data.personalInfo.email, data.personalInfo.phone, data.personalInfo.location].filter(Boolean).join(' • ') || 'your@email.com • (555) 123-4567 • City, State'}
+            </div>
+          </div>
+
+          <!-- Summary -->
+          ${data.summary ? `
+            <div style="margin-bottom: 12px;">
+              <h2 style="font-size: 11px; font-weight: 700; color: ${colors.primary}; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 6px 0;">Summary</h2>
+              <p style="color: #333; margin: 0;">${data.summary}</p>
+            </div>
+          ` : ''}
+
+          <!-- Experience -->
+          ${data.experience.length > 0 ? `
+            <div style="margin-bottom: 12px;">
+              <h2 style="font-size: 11px; font-weight: 700; color: ${colors.primary}; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">Experience</h2>
+              ${data.experience.map(exp => `
+                <div style="margin-bottom: 10px;">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <strong style="color: #111;">${exp.title || 'Job Title'}</strong>
+                    <span style="color: #666; font-size: 10px;">${exp.dates || 'Dates'}</span>
+                  </div>
+                  <div style="color: #666; font-style: italic; margin-bottom: 4px;">${exp.company || 'Company'}</div>
+                  <ul style="margin: 0; padding-left: 16px; color: #333;">
+                    ${exp.bullets.filter(b => b).map(bullet => `<li style="margin-bottom: 2px;">${bullet}</li>`).join('')}
+                  </ul>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Education -->
+          ${data.education.length > 0 ? `
+            <div style="margin-bottom: 12px;">
+              <h2 style="font-size: 11px; font-weight: 700; color: ${colors.primary}; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">Education</h2>
+              ${data.education.map(edu => `
+                <div style="margin-bottom: 6px;">
+                  <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                    <strong style="color: #111;">${edu.degree || 'Degree'}</strong>
+                    <span style="color: #666; font-size: 10px;">${edu.year || 'Year'}</span>
+                  </div>
+                  <div style="color: #666;">${edu.school || 'School'}</div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Skills -->
+          ${data.skills.length > 0 ? `
+            <div>
+              <h2 style="font-size: 11px; font-weight: 700; color: ${colors.primary}; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px 0;">Skills</h2>
+              <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                ${data.skills.map(skill => `
+                  <span style="background: ${colors.accent}; color: ${colors.primary}; padding: 2px 8px; border-radius: 4px; font-size: 10px;">${skill}</span>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+
+    function renderPreview() {
+      const preview = document.getElementById('resume-preview');
+      if (preview) {
+        preview.innerHTML = renderResumePreview();
+      }
+    }
+
+    function addSkill() {
+      const input = document.getElementById('new-skill');
+      if (input && input.value.trim()) {
+        state.resumeData.skills.push(input.value.trim());
+        input.value = '';
+        render();
+      }
+    }
+
+    // ==================== MAIN RENDER FUNCTION ====================
+    function render() {
+      const app = document.getElementById('app');
+      if (!app) return;
+
+      let content = '';
+      
+      switch (state.currentPage) {
+        case 'landing':
+          content = renderLandingPage();
+          break;
+        case 'signin':
+          content = renderAuthPage(false);
+          break;
+        case 'signup':
+          content = renderAuthPage(true);
+          break;
+        case 'dashboard':
+          if (!state.isAuthenticated) {
+            navigate('signin');
+            return;
+          }
+          content = renderDashboard();
+          break;
+        case 'results':
+          if (!state.isAuthenticated) {
+            navigate('signin');
+            return;
+          }
+          content = renderResults();
+          break;
+        case 'builder':
+          if (!state.isAuthenticated) {
+            navigate('signin');
+            return;
+          }
+          content = renderBuilder();
+          break;
+        default:
+          content = renderLandingPage();
+      }
+
+      app.innerHTML = `
+        ${content}
+        <!-- Toast Container -->
+        <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+      `;
+
+      // Apply config styles
+      applyConfigStyles();
+    }
+
+    function applyConfigStyles() {
+      const bgColor = config.background_color || defaultConfig.background_color;
+      const textColor = config.text_color || defaultConfig.text_color;
+      const fontFamily = config.font_family || defaultConfig.font_family;
+      
+      document.body.style.backgroundColor = bgColor;
+      document.body.style.color = textColor;
+      document.body.style.fontFamily = `${fontFamily}, system-ui, sans-serif`;
+
+      // Update hero content if on landing page
+      const heroTitle = document.getElementById('hero-title');
+      const heroSubtitle = document.getElementById('hero-subtitle');
+      const ctaButton = document.getElementById('cta-button');
+
+      if (heroTitle) {
+        heroTitle.innerHTML = `<span class="gradient-text">${config.hero_title || defaultConfig.hero_title}</span><br><span class="text-white">with AI Intelligence</span>`;
+      }
+      if (heroSubtitle) {
+        heroSubtitle.textContent = config.hero_subtitle || defaultConfig.hero_subtitle;
+      }
+      if (ctaButton) {
+        ctaButton.textContent = `${config.cta_text || defaultConfig.cta_text} →`;
+      }
+    }
+
+    // ==================== ELEMENT SDK INTEGRATION ====================
+    async function onConfigChange(newConfig) {
+      config = { ...defaultConfig, ...newConfig };
+      render();
+    }
+
+    function mapToCapabilities(config) {
+      return {
+        recolorables: [
+          {
+            get: () => config.background_color || defaultConfig.background_color,
+            set: (value) => {
+              config.background_color = value;
+              if (window.elementSdk) window.elementSdk.setConfig({ background_color: value });
+            }
+          },
+          {
+            get: () => config.surface_color || defaultConfig.surface_color,
+            set: (value) => {
+              config.surface_color = value;
+              if (window.elementSdk) window.elementSdk.setConfig({ surface_color: value });
+            }
+          },
+          {
+            get: () => config.text_color || defaultConfig.text_color,
+            set: (value) => {
+              config.text_color = value;
+              if (window.elementSdk) window.elementSdk.setConfig({ text_color: value });
+            }
+          },
+          {
+            get: () => config.primary_action_color || defaultConfig.primary_action_color,
+            set: (value) => {
+              config.primary_action_color = value;
+              if (window.elementSdk) window.elementSdk.setConfig({ primary_action_color: value });
+            }
+          },
+          {
+            get: () => config.secondary_action_color || defaultConfig.secondary_action_color,
+            set: (value) => {
+              config.secondary_action_color = value;
+              if (window.elementSdk) window.elementSdk.setConfig({ secondary_action_color: value });
+            }
+          }
+        ],
+        borderables: [],
+        fontEditable: {
+          get: () => config.font_family || defaultConfig.font_family,
+          set: (value) => {
+            config.font_family = value;
+            if (window.elementSdk) window.elementSdk.setConfig({ font_family: value });
+          }
+        },
+        fontSizeable: {
+          get: () => config.font_size || defaultConfig.font_size,
+          set: (value) => {
+            config.font_size = value;
+            if (window.elementSdk) window.elementSdk.setConfig({ font_size: value });
+          }
+        }
+      };
+    }
+
+    function mapToEditPanelValues(config) {
+      return new Map([
+        ['hero_title', config.hero_title || defaultConfig.hero_title],
+        ['hero_subtitle', config.hero_subtitle || defaultConfig.hero_subtitle],
+        ['cta_text', config.cta_text || defaultConfig.cta_text]
+      ]);
+    }
+
+    // Initialize
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities,
+        mapToEditPanelValues
+      });
+    }
+
+    // Initial render
+    render();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9bfc7d8fa1d2a352',t:'MTc2ODcyMjUxMS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
